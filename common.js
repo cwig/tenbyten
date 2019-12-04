@@ -108,6 +108,12 @@
                 },
                 set: function (x, y, v) {
                     arr[y * w + x] = v;
+                },
+                getArray: function() {
+                    return arr;
+                },
+                setArray: function() {
+                    return arr;
                 }
             };
         };

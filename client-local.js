@@ -41,8 +41,81 @@
         } catch (ex) {}
     };
 
+    var saveState = function() {
+      console.log(st)
+      var mtx_state = []
+      c.seq(10).forEach(function(y) {
+          c.seq(10).forEach(function(x) {
+              var v = st.m.get(x, y);
+              mtx_state.push(v);
+          });
+      });
+
+      localStorage.setItem('state', JSON.stringify({
+        "score": st.score,
+        "mtx": mtx_state,
+        "slots": st.slots,
+        "step": st.steps,
+        "ended": st.ended
+      }));
+    }
+    var loadState = function() {
+      var state = localStorage.getItem('state');
+      if (state && state.length > 0) {
+          state = JSON.parse(state);
+      }
+      else {
+        return false;
+      }
 
 
+      var mtx_state = state['mtx']
+      var cnt = 0;
+      c.seq(10).forEach(function(y) {
+          c.seq(10).forEach(function(x) {
+              st.m.set(x, y, mtx_state[cnt]);
+              cnt += 1
+          });
+      });
+
+      var newSlots = [];
+      for(var i=0; i<state['slots'].length; i++) {
+          var slot_i = undefined;
+          if(state['slots'][i]) {
+            slot_i = {
+                t: state['slots'][i]['t'],
+                f: state['slots'][i]['f'],
+                i: state['slots'][i]['i'],
+                p: state['slots'][i]['p'],
+                dims: state['slots'][i]['dims']
+            }
+          }
+
+          newSlots.push(slot_i)
+      }
+
+      st.score = state['score'];
+      st.slots = newSlots;
+      st.step = state['step'];
+      st.ended = state['ended'];
+
+      updateFromMatrix();
+      updateScore(st.score);
+
+      return true;
+    }
+
+    var updateFromMatrix = function() {
+        c.seq(10).forEach(function(y) {
+            c.seq(10).forEach(function(x) {
+                var v = st.m.get(x, y);
+                var r = sMatrix.get(x, y);
+                r.attr('class', 'fill-' + v);
+            });
+        });
+    };
+
+    var activeSlot = null;
     var l = 10;
     var L = 9.5;
     var R = 1;
@@ -50,12 +123,12 @@
     var slotY = 100 + 50*0.25;
     var slotXs = c.seq(3).map(function(i) { return (i+0.5)*0.33333*100; });
     var gap = hasTouch() ? -2*10 : 0; // finger gap so you can see the piece while dragging
-
     var s;
     var sSlots = new Array(3);
     var sMatrix = c.mtx(10, 10);
 
     var st = c.initialState();
+
     var highScore = loadHighScore(LS_KEY);
 
 
@@ -93,7 +166,7 @@
         g.add(t);
         g.addClass('score');
 
-        var onClick = function() {
+        var onClick = function(e) {
             g.remove();
             if (cb) { cb(); }
         };
@@ -104,15 +177,6 @@
 
 
 
-    var updateFromMatrix = function() {
-        c.seq(10).forEach(function(y) {
-            c.seq(10).forEach(function(x) {
-                var v = st.m.get(x, y);
-                var r = sMatrix.get(x, y);
-                r.attr('class', 'fill-' + v);
-            });
-        });
-    };
 
 
 
@@ -177,21 +241,12 @@
 
         var scl;
         var lastPos;
-        g.drag(
-            function(dx, dy/*, x, y, ev*/) { // move
-                lastPos = [
-                    slotXs[slot] + dx*scl,
-                    slotY + dy*scl + gap
-                ];
-                g.transform(
-                    Snap
-                        .matrix()
-                        .translate(lastPos[0], lastPos[1])
-                        .translate(-dims[0]*5, -dims[1]*5)
-                        .toTransformString()
-                );
-            },
-            function(/*x, y, ev*/) { // start
+
+
+        var start = function(ev) { // start
+
+              var x = ev.touches[0].screenX;
+              var y = ev.touches[0].screenY;
                 lastPos = [
                     slotXs[slot],
                     slotY
@@ -205,8 +260,10 @@
                         .translate(-dims[0]*5, -dims[1]*5)
                         .toTransformString()
                 );
-            },
-            function(/*ev*/) { // end
+                activeSlot = [g, slot, scl, dims, x, y, lastPos];
+            }
+        var end = function(/*ev*/) { // end
+              activeSlot = null;
                 var pos2 = [
                     Math.round( lastPos[0]/10 - dims[0]/2 ),
                     Math.round( lastPos[1]/10 - dims[1]/2 )
@@ -236,8 +293,83 @@
                         checkSlots();
                     }
                 }
+
+                saveState();
             }
-        );
+        // g.drag(move, start, end);
+
+        // g.mousedown( start_drag );
+        // g.mousemove( move_drag );
+        // g.mouseup( end_drag );
+
+        g.touchstart( start );
+        // g.touchmove( move );
+        g.touchend( end );
+
+        // g.drag(
+        //     function(dx, dy/*, x, y, ev*/) { // move
+        //       console.log("Drag1")
+        //         lastPos = [
+        //             slotXs[slot] + dx*scl,
+        //             slotY + dy*scl + gap
+        //         ];
+        //         g.transform(
+        //             Snap
+        //                 .matrix()
+        //                 .translate(lastPos[0], lastPos[1])
+        //                 .translate(-dims[0]*5, -dims[1]*5)
+        //                 .toTransformString()
+        //         );
+        //     },
+        //     function(/*x, y, ev*/) { // start
+        //       console.log("Drag2")
+        //         lastPos = [
+        //             slotXs[slot],
+        //             slotY
+        //         ];
+        //         scl = svgScale(s);
+        //         //console.log('start', scl);
+        //         g.transform(
+        //             Snap
+        //                 .matrix()
+        //                 .translate(slotXs[slot], slotY + gap)
+        //                 .translate(-dims[0]*5, -dims[1]*5)
+        //                 .toTransformString()
+        //         );
+        //     },
+        //     function(/*ev*/) { // end
+        //       console.log("Drag3")
+        //         var pos2 = [
+        //             Math.round( lastPos[0]/10 - dims[0]/2 ),
+        //             Math.round( lastPos[1]/10 - dims[1]/2 )
+        //         ];
+        //
+        //         var slot = parseInt( g.attr('class').substring(8), 10);
+        //
+        //         //console.log('end', pos2);
+        //
+        //         var result = c.playPiece(slot, pos2, st);
+        //
+        //         g.remove();
+        //         sSlots[slot] = undefined;
+        //
+        //         if (typeof result === 'object') {
+        //             createPiece(p, slot);
+        //         }
+        //         else {
+        //             st.ended = result;
+        //             updateScore(st.score);
+        //             updateFromMatrix();
+        //
+        //             if (st.ended) {
+        //                 alert('game over', reset);
+        //             }
+        //             else {
+        //                 checkSlots();
+        //             }
+        //         }
+        //     }
+        // );
 
         return g;
     };
@@ -249,7 +381,39 @@
     s = Snap('svg');
     s.select('desc').remove();
 
+    var move = function(ev) { // move
+      if(activeSlot) {
+          var x = ev.touches[0].screenX;
+          var y = ev.touches[0].screenY;
 
+          var g = activeSlot[0];
+          var slot = activeSlot[1];
+          var scl = activeSlot[2];
+          var dims = activeSlot[3];
+          var prev_x = activeSlot[4];
+          var prev_y = activeSlot[5];
+          var lastPos = activeSlot[6];
+
+          var dx = x - prev_x;
+          var dy = y - prev_y;
+
+          // var tmpLastPos = [
+          //     slotXs[slot] + dx*scl,
+          //     slotY + dy*scl + gap
+          // ];
+          lastPos[0] = slotXs[slot] + dx*scl;
+          lastPos[1] = slotY + dy*scl + gap;
+          g.transform(
+              Snap
+                  .matrix()
+                  .translate(lastPos[0], lastPos[1])
+                  .translate(-dims[0]*5, -dims[1]*5)
+                  .toTransformString()
+          );
+      }
+    }
+    s.touchmove(move);
+    // s.drag(move, function(){}, function(){});
 
     // setup scores
     (function() {
@@ -275,19 +439,17 @@
         });
     });
 
-
+    loadState();
 
     // populate slots
     c.seq(3).forEach(function(slot) {
-        createPiece(st.slots[slot], slot);
+        if(st.slots[slot]) {
+          createPiece(st.slots[slot], slot);
+        }
     });
-
-
 
     // load high score
     updateHighScore(highScore);
-
-
 
     // setup fullscreen
     var setFullScreen = function setFullScreen(ev) {
@@ -295,10 +457,11 @@
         ev.preventDefault();
         s.node.requestFullscreen();
         s.node.removeEventListener('mousedown',  setFullScreen);
-        s.node.removeEventListener('touchstart', setFullScreen);
+        // s.node.removeEventListener('touchstart', setFullScreen);
     };
     s.node.addEventListener('mousedown',  setFullScreen);
-    s.node.addEventListener('touchstart', setFullScreen);
+    // s.node.addEventListener('touchstart', setFullScreen);
+
 
 
 
