@@ -451,6 +451,10 @@
     // load high score
     updateHighScore(highScore);
 
+    if (st.ended) {
+        alert('game over', reset);
+    }
+
     // setup fullscreen
     var setFullScreen = function setFullScreen(ev) {
         ev.stopPropagation();
