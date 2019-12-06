@@ -452,7 +452,8 @@
     updateHighScore(highScore);
 
     if (st.ended) {
-        alert('game over', reset);
+        reset();
+        //alert('game over', reset);
     }
 
     // setup fullscreen
